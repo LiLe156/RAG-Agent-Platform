@@ -1,0 +1,28 @@
+# ===== Web 框架与接口 =====
+fastapi
+uvicorn
+pydantic
+python-multipart
+
+# ===== 环境变量安全 =====
+python-dotenv
+
+# ===== LangChain 与 Agent 核心 =====
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langchain-classic
+langgraph
+langgraph-checkpoint-sqlite
+
+# ===== RAG 检索与工具 (包含你截图里的混合检索和 PDF 处理) =====
+faiss-cpu
+langchain-huggingface
+sentence-transformers
+jieba
+rank-bm25
+pypdf
+
+# ===== 异步数据库 =====
+aiosqlite

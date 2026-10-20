@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业内部知识库 Agent 测试</title>
+    <style>
+        /* 1. 全局样式 */
+        body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; height: 100vh; }
+        
+        /* 2. 聊天容器 */
+        .chat-container { width: 100%; max-width: 800px; display: flex; flex-direction: column; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.1); height: 100vh; }
+        .chat-header { background-color: #1a73e8; color: #fff; padding: 15px 20px; font-size: 18px; font-weight: bold; text-align: center; }
+        
+        /* 3. 消息区域 */
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; background-color: #f8f9fa; }
+        .message { display: flex; align-items: flex-start; max-width: 85%; animation: fadeIn 0.3s ease-in; }
+        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message.bot { align-self: flex-start; }
+        .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; font-weight: bold; flex-shrink: 0; }
+        .user .avatar { background-color: #0084ff; margin-left: 10px; }
+        .bot .avatar { background-color: #00c853; margin-right: 10px; }
+        
+        /* 气泡样式 */
+        .bubble { padding: 12px 16px; border-radius: 12px; font-size: 15px; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+        .user .bubble { background-color: #0084ff; color: #fff; border-bottom-right-radius: 4px; }
+        .bot .bubble { background-color: #fff; color: #333; border: 1px solid #e0e0e0; border-bottom-left-radius: 4px; }
+        
+        /* 打字机光标 */
+        .typing-cursor::after { content: '▍'; animation: blink 1s infinite; color: #1a73e8; }
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        /* 4. 底部输入区 */
+        .chat-input-area { padding: 15px 20px; background: #fff; border-top: 1px solid #e0e0e0; display: flex; gap: 10px; }
+        #userInput { flex: 1; padding: 12px 15px; border: 1px solid #ccc; border-radius: 25px; font-size: 15px; outline: none; }
+        #sendBtn { padding: 0 25px; border: none; background-color: #1a73e8; color: #fff; border-radius: 25px; font-size: 15px; cursor: pointer; }
+        
+        /* 状态提示条 */
+        .status-toast { text-align: center; font-size: 12px; color: #888; margin: 5px 0; display: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <div class="chat-header">企业内部知识库 Agent 测试</div>
+        
+        <div class="chat-messages" id="chatBox">
+            <div class="message bot">
+                <div class="avatar">AI</div>
+                <div class="bubble">你好！我是基于 RAG 和 LangGraph 的内部知识库助手。可以试试问我：“Function Call原理是什么？” 然后再问：“它和RAG有什么关系？”</div>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <input type="text" id="userInput" placeholder="输入你的问题，按 Enter 发送..." autocomplete="off">
+            <button id="sendBtn">发送</button>
+        </div>
+    </div>
+
+    <script>
+        // 每次刷新页面生成新的 session_id（测试多轮记忆）
+        const SESSION_ID = "session_web_" + Date.now(); 
+        const API_URL = "http://127.0.0.1:8001/chat/stream";
+
+        const chatBox = document.getElementById('chatBox');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        userInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+        sendBtn.addEventListener('click', sendMessage);
+
+        async function sendMessage() {
+            const query = userInput.value.trim();
+            if (!query) return;
+
+            // 1. 发送用户消息并清空输入框
+            appendMessage('user', query);
+            userInput.value = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // 2. 创建 AI 气泡和光标
+            const botBubble = appendMessage('bot', ''); 
+            const cursor = document.createElement('span');
+            cursor.className = 'typing-cursor';
+            botBubble.appendChild(cursor);
+
+            // 3. 创建状态提示条
+            const statusToast = document.createElement('div');
+            statusToast.className = 'status-toast';
+            chatBox.appendChild(statusToast);
+
+            let rawBuffer = ""; 
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: "user001", session_id: SESSION_ID, query: query })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    let lines = buffer.split('\n');
+                    buffer = lines.pop(); 
+
+                    for (let line of lines) {
+                        line = line.trim();
+                        if (!line.startsWith('data: ')) continue;
+                        
+                        try {
+                            const data = JSON.parse(line.substring(6));
+                            
+                            // 状态提示
+                            if (data.status === 'start') {
+                                statusToast.style.display = 'block';
+                                statusToast.innerText = 'Agent 开始思考...';
+                            } else if (data.status === 'tool') {
+                                statusToast.style.display = 'block';
+                                statusToast.innerText = `🔧 ${data.msg}`; 
+                            } else if (data.status === 'node') {
+                                // 【修复】删除了重复赋值，增加了 display 控制
+                                statusToast.style.display = 'block';
+                                statusToast.innerText = `⚙️ ${data.msg}`;
+                            } else if (data.status === 'error') {
+                                statusToast.style.display = 'none';
+                                botBubble.innerText = `\n[错误] ${data.msg}`;
+                            } else if (data.status === 'done') {
+                                statusToast.style.display = 'none';
+                                // 【核心修复】接收完整答案兜底，覆盖流式可能丢失的字
+                                if (data.answer) {
+                                    botBubble.innerText = data.answer;
+                                    if (cursor && cursor.parentNode) {
+                                        cursor.remove();
+                                    }
+                                }
+                            } else if (data.status === 'stream') {
+                                statusToast.style.display = 'none'; 
+                                
+                                // 只要后端推了字，就累加显示
+                                if (data.token) {
+                                    rawBuffer += data.token;
+                                    botBubble.innerText = rawBuffer;
+                                    botBubble.appendChild(cursor);
+                                    chatBox.scrollTop = chatBox.scrollHeight; 
+                                }
+                            }
+                        } catch (e) { /* 忽略不完整的JSON */ }
+                    }
+                }
+            } catch (err) {
+                botBubble.innerText = `连接异常: ${err.message}`;
+            } finally {
+                // 收尾清理工作
+                if (cursor.parentNode) cursor.remove();
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.focus();
+                statusToast.remove();
+            }
+        }
+
+        // 辅助函数：在聊天框追加消息气泡
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.innerText = role === 'user' ? '你' : 'AI';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerText = text;
+
+            msgDiv.appendChild(avatar);
+            msgDiv.appendChild(bubble);
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            
+            return bubble; 
+        }
+    </script>
+</body>
+</html>

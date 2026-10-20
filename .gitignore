@@ -1,0 +1,26 @@
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE 配置
+.idea/
+.vscode/
+
+# 虚拟环境
+venv/
+env/
+
+# 【极其重要】千万别把密钥传到 GitHub！
+.env
+
+# 本地数据与向量库
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+faiss_store/
+faiss_memory_store/
+agent_memory.json
+*.pkl

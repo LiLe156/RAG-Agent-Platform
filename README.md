@@ -26,7 +26,7 @@ https://img.shields.io/badge/License-MIT-yellow
 丝滑流式输出：基于 SSE 协议，前端实现真·打字机效果，并带有流式丢包兜底机制。
 
 🏗️ 系统架构与工作流
-https://./architecture.png
+![系统架构](./architecture.png)
 
 核心工作流说明：
 

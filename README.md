@@ -89,4 +89,15 @@ RAG-Agent-Platform/
 
 解决多用户并发写冲突：为 FAISS 向量库的写入操作引入 threading.Lock() 互斥锁，防止并发写坏索引。
 
+## 📸 运行效果展示
+
+### 1. 多轮记忆与丝滑流式输出
+![多轮对话](./ui-memory.png)
+
+### 2. 生产级安全护栏（防 Prompt 注入）
+![安全拦截](./security-guard.png)
+
+### 3. 全链路可观测性（Trace 日志追踪）
+![Trace日志](./trace-logs.png)
+
 如果觉得这个项目对你有帮助，欢迎点个 ⭐ Star！
